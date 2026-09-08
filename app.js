@@ -21,9 +21,22 @@ map.addControl(new maplibregl.ScaleControl({unit:'metric'}),'bottom-left');
 async function dataUrl(name){const pieces=await Promise.all(PARTS[name].map(f=>fetch('overlay/'+f+'?v=4',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error(f+' '+r.status);return r.text()})));return 'data:image/png;base64,'+pieces.join('');}
 async function addOverlay(name,visible=true,opacity=1){const url=await dataUrl(name);map.addSource(name,{type:'image',url,coordinates:IMG_CORNERS});map.addLayer({id:name,type:'raster',source:name,layout:{visibility:visible?'visible':'none'},paint:{'raster-opacity':opacity,'raster-fade-duration':0}})}
 async function loadOverlays(){
- $('#loadingText').textContent='Loading embedded Chehalis layers…';
- await addOverlay('vegetation',false,.88); await addOverlay('fires',false,.95); await addOverlay('cutblocks_all',true,1); await addOverlay('cutblocks_0_5',false,1); await addOverlay('wetlands',false,1); await addOverlay('hydro',true,1); await addOverlay('roads_all',true,1); await addOverlay('roads_driveable',false,1); await addOverlay('boundary',true,1);
- ready=true; $('#featureCount').textContent='layers ready'; $('#loading').style.display='none'; toast('Chehalis layers loaded');
+ $('#loadingText').textContent='Loading core Chehalis layers…';
+ await addOverlay('cutblocks_all',true,1);
+ await addOverlay('cutblocks_0_5',false,1);
+ await addOverlay('roads_all',true,1);
+ await addOverlay('roads_driveable',false,1);
+ await addOverlay('boundary',true,1);
+ ready=true;
+ $('#featureCount').textContent='core layers ready';
+ $('#loading').style.display='none';
+ toast('Chehalis terrain ready');
+ const optional=[['hydro',true,1],['vegetation',false,.88],['wetlands',false,1],['fires',false,.95]];
+ const results=await Promise.allSettled(optional.map(async ([name,visible,opacity])=>{await addOverlay(name,visible,opacity);return name;}));
+ const failed=[];
+ results.forEach((r,i)=>{if(r.status==='rejected'){const name=optional[i][0];failed.push(name);const el=document.querySelector(`input[data-group="${name}"]`);if(el){el.checked=false;el.disabled=true;el.title='Layer unavailable in this build';}console.warn('Optional layer failed:',name,r.reason);}});
+ if(failed.length){$('#featureCount').textContent='core ready';$('#cmdStatus').textContent='Map ready · optional layer repair in progress';}
+ else{$('#featureCount').textContent='all layers ready';}
 }
 function vis(id,on){if(map.getLayer(id))map.setLayoutProperty(id,'visibility',on?'visible':'none')}
 function setGroup(group,on){if(group==='boundary')vis('boundary',on);if(group==='hydro')vis('hydro',on);if(group==='vegetation')vis('vegetation',on);if(group==='wetlands')vis('wetlands',on);if(group==='fires')vis('fires',on);if(group==='roads'){vis('roads_all',on&&state.roads==='all');vis('roads_driveable',on&&state.roads==='driveable')}if(group==='cutblocks'){vis('cutblocks_all',on&&state.cutblocks==='all');vis('cutblocks_0_5',on&&state.cutblocks==='0_5')}}
@@ -44,7 +57,7 @@ function runCommand(raw){const q=raw.trim().toLowerCase().replace(/[–—]/g,'-
 }
 function setAnalysis(mode){$$('[data-analysis]').forEach(b=>b.classList.toggle('active',b.dataset.analysis===mode));if(mode==='none'){map.setPaintProperty('sat','raster-saturation',0);map.setPaintProperty('hillshade','hillshade-shadow-color','#000');map.setPaintProperty('hillshade','hillshade-highlight-color','#fff')}else if(mode==='slope'){map.setPaintProperty('sat','raster-saturation',-.65);map.setPaintProperty('hillshade','hillshade-shadow-color','#4b2020');map.setPaintProperty('hillshade','hillshade-highlight-color','#eedc8a');toast('Relief emphasized for slope reading')}else{map.setPaintProperty('sat','raster-saturation',-.35);map.setPaintProperty('hillshade','hillshade-shadow-color','#1b2b49');map.setPaintProperty('hillshade','hillshade-highlight-color','#d6bd75');toast('Aspect-oriented relief shading enabled')}}
 function terrainReadout(e){try{const z=map.queryTerrainElevation(e.lngLat);if(!Number.isFinite(z))return;const lat=e.lngLat.lat,lng=e.lngLat.lng,d=.00055;const vals=[[lng+d,lat],[lng-d,lat],[lng,lat+d],[lng,lat-d]].map(p=>map.queryTerrainElevation(p));let slope='—',aspect='—';if(vals.every(Number.isFinite)){const mlon=111320*Math.cos(lat*Math.PI/180)*d,mlat=111320*d,dx=(vals[0]-vals[1])/(2*mlon),dy=(vals[2]-vals[3])/(2*mlat);slope=(Math.atan(Math.hypot(dx,dy))*180/Math.PI).toFixed(1)+'°';const a=(Math.atan2(dx,dy)*180/Math.PI+180+360)%360;aspect=['N','NE','E','SE','S','SW','W','NW'][Math.round(a/45)%8]}$('#readout').innerHTML=`<b>Elev</b> ${Math.round(z/exag)} m &nbsp; <b>Slope</b> ${slope} &nbsp; <b>Aspect</b> ${aspect}`}catch{}}
-map.on('load',async()=>{map.setTerrain({source:'dem',exaggeration:exag});try{await loadOverlays()}catch(e){console.error(e);$('#loadingText').textContent='Layer load failed — refresh';$('#cmdStatus').textContent='Layer load failed'}});map.on('mousemove',terrainReadout);
+map.on('load',async()=>{map.setTerrain({source:'dem',exaggeration:exag});try{await loadOverlays()}catch(e){console.error(e);$('#loadingText').textContent='Core layer load failed — refresh';$('#cmdStatus').textContent='Core layer load failed'}});map.on('mousemove',terrainReadout);
 $$('input[data-group]').forEach(el=>el.addEventListener('change',()=>setGroup(el.dataset.group,el.checked)));
 $('#homeBtn').onclick=()=>map.fitBounds(UNIT_BOUNDS,{padding:45,pitch:58,bearing:-18,duration:800});$('#topBtn').onclick=()=>map.easeTo({pitch:0,bearing:0});$('#northBtn').onclick=()=>map.easeTo({pitch:60,bearing:0});
 $$('[data-base]').forEach(b=>b.onclick=()=>{$$('[data-base]').forEach(x=>x.classList.toggle('active',x===b));vis('sat',b.dataset.base==='sat');vis('topo',b.dataset.base==='topo')});
