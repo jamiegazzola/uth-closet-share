@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Chehalis 3D Terrain Lab</title>
+<link href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+<style>
+:root{--bg:#0b1110;--panel:#111b18eF;--line:#2b3934;--text:#eef6f2;--muted:#9eb0a9;--accent:#d6a746}
+*{box-sizing:border-box}html,body,#map{margin:0;width:100%;height:100%;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--text)}
+#map{position:absolute;inset:0}.panel{position:absolute;z-index:10;background:var(--panel);backdrop-filter:blur(14px);border:1px solid #ffffff16;box-shadow:0 12px 30px #0007;border-radius:14px}
+#top{left:12px;right:12px;top:12px;display:flex;align-items:center;gap:10px;padding:10px;max-width:980px;margin:auto}.brand{font-weight:800;white-space:nowrap}.brand b{color:var(--accent)}
+#cmd{flex:1;min-width:120px;background:#07100d;border:1px solid #ffffff20;color:#fff;border-radius:10px;padding:11px 12px;font-size:15px;outline:none}#cmd:focus{border-color:#d6a74680}
+.btn{border:1px solid #ffffff20;background:#17241f;color:#fff;border-radius:10px;padding:10px 12px;font-weight:700;cursor:pointer}.btn:hover{background:#20312a}.btn.accent{background:#d6a746;color:#111;border-color:#d6a746}
+#side{left:12px;top:78px;width:280px;padding:12px;max-height:calc(100% - 145px);overflow:auto}.section{padding:10px 0;border-bottom:1px solid var(--line)}.section:last-child{border:0}.title{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;font-size:14px}.row label{display:flex;align-items:center;gap:8px}.swatch{width:10px;height:10px;border-radius:3px;display:inline-block}
+#status{position:absolute;z-index:10;left:50%;bottom:18px;transform:translateX(-50%);background:#09120fee;border:1px solid #ffffff1b;border-radius:999px;padding:8px 13px;font-size:13px;color:#dce7e2;pointer-events:none;max-width:88vw;text-align:center}.hint{font-size:12px;color:var(--muted);line-height:1.4}.hidden{display:none!important}input[type=range]{width:120px}
+.filebox{border:1px dashed #ffffff30;border-radius:11px;padding:10px;text-align:center;background:#ffffff06}.small{font-size:12px;color:var(--muted)}
+#inspect{right:12px;bottom:18px;width:300px;padding:12px;display:none}.kv{display:grid;grid-template-columns:90px 1fr;gap:4px 8px;font-size:12px}.kv div:nth-child(odd){color:var(--muted)}
+@media(max-width:720px){#top{left:8px;right:8px;top:8px;flex-wrap:wrap}.brand{width:100%}#side{left:8px;top:118px;width:230px;max-height:52vh}#status{bottom:10px;font-size:11px}#inspect{left:8px;right:8px;width:auto;bottom:48px}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="top" class="panel">
+  <div class="brand">Chehalis <b>Terrain Lab</b></div>
+  <input id="cmd" autocomplete="off" placeholder='Ask the map… e.g. “highlight 1–5 year cutblocks”' />
+  <button id="run" class="btn accent">Run</button>
+</div>
+<div id="side" class="panel">
+  <div class="section">
+    <div class="title">Chehalis data</div>
+    <div id="filebox" class="filebox">
+      <div style="font-weight:750;margin-bottom:5px">Load your Chehalis KMZ</div>
+      <div class="small">Your file stays in your browser. KMZ, KML, or the original .kmz.zip works.</div>
+      <label class="btn" style="display:inline-block;margin-top:9px">Choose file<input id="file" type="file" accept=".kmz,.kml,.zip" hidden></label>
+    </div>
+    <div id="loaded" class="hidden small" style="margin-top:8px"></div>
+  </div>
+  <div class="section">
+    <div class="title">Layers</div>
+    <div class="row"><label><input data-layer="cutblocks" type="checkbox" checked><span class="swatch" style="background:#f4c542"></span>Cutblocks</label></div>
+    <div class="row"><label><input data-layer="roads" type="checkbox" checked><span class="swatch" style="background:#63ce78"></span>Road access</label></div>
+    <div class="row"><label><input data-layer="hydro" type="checkbox" checked><span class="swatch" style="background:#63b3ff"></span>Water</label></div>
+    <div class="row"><label><input data-layer="vri" type="checkbox"><span class="swatch" style="background:#2f8b57"></span>Forest age</label></div>
+    <div class="row"><label><input data-layer="wetlands" type="checkbox" checked><span class="swatch" style="background:#7ed1d7"></span>Wetlands</label></div>
+    <div class="row"><label><input data-layer="fires" type="checkbox"><span class="swatch" style="background:#e86d4c"></span>Historical fires</label></div>
+    <div class="row"><label><input data-layer="boundary" type="checkbox" checked><span class="swatch" style="background:#d6a746"></span>Zone boundary</label></div>
+  </div>
+  <div class="section">
+    <div class="title">Terrain</div>
+    <div class="row"><span>3D exaggeration</span><input id="exag" type="range" min="0" max="3" step="0.1" value="1.25"></div>
+    <div class="row"><label><input id="hillshade" type="checkbox" checked>Hillshade</label></div>
+    <button id="home" class="btn" style="width:100%;margin-top:6px">Whole area</button>
+  </div>
+  <div class="section">
+    <div class="title">Voice</div>
+    <div class="hint"><b>Wispr Flow:</b> click the command box and dictate normally. It behaves like a regular text field, so Flow works without a special integration.</div>
+  </div>
+  <div class="section">
+    <div class="title">Examples</div>
+    <div class="hint">“highlight 1–5 year cutblocks”<br>“show driveable roads”<br>“hide forest age”<br>“show streams and wetlands”<br>“reset layers”</div>
+  </div>
+</div>
+<div id="inspect" class="panel"><div class="title">Feature</div><div id="inspectBody" class="kv"></div></div>
+<div id="status">3D terrain ready — load your Chehalis file once to add your layers</div>
+<script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const status=t=>{$('#status').textContent=t};
+const unitCenter=[-121.70,49.43];
+const map=new maplibregl.Map({container:'map',center:unitCenter,zoom:9.4,pitch:64,bearing:-15,maxPitch:85,style:{version:8,sources:{sat:{type:'raster',tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],tileSize:256,attribution:'Esri'},dem:{type:'raster-dem',tiles:['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],tileSize:256,encoding:'terrarium',maxzoom:15}},layers:[{id:'sat',type:'raster',source:'sat'}],terrain:{source:'dem',exaggeration:1.25}}});
+map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');
+map.addControl(new maplibregl.ScaleControl({unit:'metric'}),'bottom-right');
+let allFC={type:'FeatureCollection',features:[]};
+const layerIds={cutblocks:['cutblocks-fill','cutblocks-line','cutblocks-highlight'],roads:['roads-line'],hydro:['hydro-line'],vri:['vri-fill'],wetlands:['wetlands-fill','wetlands-line'],fires:['fires-fill'],boundary:['boundary-line']};
+function canon(path,name=''){const p=(path+' '+name).toLowerCase();if(p.includes('roads- colour by access')||p.includes('roads- color by access')){let sub='unknown';if(p.includes('green - likely driveable'))sub='likely_driveable';else if(p.includes('orange - maybe'))sub='maybe_check_access';else if(p.includes('red - overgrown'))sub='overgrown_deactivated';else if(p.includes('purple'))sub='trail_nonroad';return ['roads',sub]}if(p.includes('cutblocks by age')){let sub='other';if(p.includes('0–5')||p.includes('0-5'))sub='0_5';else if(p.includes('6–10')||p.includes('6-10'))sub='6_10';else if(p.includes('11–15')||p.includes('11-15'))sub='11_15';else if(p.includes('16–20')||p.includes('16-20'))sub='16_20';else if(p.includes('21+'))sub='21_plus';return ['cutblocks',sub]}if(p.includes('rivers & streams'))return ['hydro',p.includes('rivers')?'rivers':'streams'];if(p.includes('vri vegetation')){let sub='unknown_age';if(p.includes('open / non-forest'))sub='open_nonforest';else if(p.includes('0–20')||p.includes('0-20'))sub='0_20';else if(p.includes('21–40')||p.includes('21-40'))sub='21_40';else if(p.includes('41–80')||p.includes('41-80'))sub='41_80';else if(p.includes('81–140')||p.includes('81-140'))sub='81_140';else if(p.includes('141+'))sub='141_plus';return ['vri',sub]}if(p.includes('historical fires'))return ['fires','fire'];if(p.includes('wetlands'))return ['wetlands','wetland'];if(p.includes('2-19 leh zone a')&&name.toLowerCase().includes('chehalis 2-19 zone a'))return ['boundary','zone'];return [null,null]}
+function coords(txt){return txt.trim().split(/\s+/).map(s=>s.split(',').slice(0,2).map(Number)).filter(a=>a.length===2&&a.every(Number.isFinite))}
+function geomFrom(el){const tag=el.localName;if(tag==='Point'){const c=el.querySelector(':scope > coordinates');const a=c?coords(c.textContent):[];return a[0]?{type:'Point',coordinates:a[0]}:null}if(tag==='LineString'){const c=el.querySelector(':scope > coordinates');const a=c?coords(c.textContent):[];return a.length>1?{type:'LineString',coordinates:a}:null}if(tag==='Polygon'){const outer=el.querySelector(':scope > outerBoundaryIs > LinearRing > coordinates');if(!outer)return null;const rings=[coords(outer.textContent)];el.querySelectorAll(':scope > innerBoundaryIs > LinearRing > coordinates').forEach(x=>rings.push(coords(x.textContent)));return {type:'Polygon',coordinates:rings}}if(tag==='MultiGeometry'){const gs=[...el.children].map(geomFrom).filter(Boolean);if(!gs.length)return null;if(gs.every(g=>g.type==='Polygon'))return {type:'MultiPolygon',coordinates:gs.map(g=>g.coordinates)};if(gs.every(g=>g.type==='LineString'))return {type:'MultiLineString',coordinates:gs.map(g=>g.coordinates)};if(gs.every(g=>g.type==='Point'))return {type:'MultiPoint',coordinates:gs.map(g=>g.coordinates)};return {type:'GeometryCollection',geometries:gs}}return null}
+function parseKML(text){const xml=new DOMParser().parseFromString(text,'application/xml');if(xml.querySelector('parsererror'))throw new Error('KML could not be parsed');const feats=[];xml.querySelectorAll('Placemark').forEach(pm=>{const folders=[];let n=pm.parentElement;while(n){if(n.localName==='Folder'||n.localName==='Document'){const nm=[...n.children].find(x=>x.localName==='name');if(nm)folders.unshift(nm.textContent.trim())}n=n.parentElement}const nm=[...pm.children].find(x=>x.localName==='name')?.textContent?.trim()||'';const path=folders.join(' / ');const [category,subclass]=canon(path,nm);if(!category)return;const ge=[...pm.children].find(x=>['Point','LineString','Polygon','MultiGeometry'].includes(x.localName));if(!ge)return;const geometry=geomFrom(ge);if(!geometry)return;feats.push({type:'Feature',properties:{name:nm,folder:path,category,subclass},geometry})});return {type:'FeatureCollection',features:feats}}
+async function fileToKML(file){const name=file.name.toLowerCase();if(name.endsWith('.kml'))return await file.text();let zip=await JSZip.loadAsync(file);let names=Object.keys(zip.files);const kmzName=names.find(n=>n.toLowerCase().endsWith('.kmz'));if(kmzName){const blob=await zip.file(kmzName).async('blob');zip=await JSZip.loadAsync(blob);names=Object.keys(zip.files)}const kmlName=names.find(n=>n.toLowerCase().endsWith('.kml'));if(!kmlName)throw new Error('No KML found inside this file');return await zip.file(kmlName).async('text')}
+function addLayers(){if(map.getSource('chehalis'))map.getSource('chehalis').setData(allFC);else map.addSource('chehalis',{type:'geojson',data:allFC});const add=(id,type,filter,paint)=>{if(!map.getLayer(id))map.addLayer({id,type,source:'chehalis',filter,paint})};add('vri-fill','fill',['==',['get','category'],'vri'],{'fill-color':['match',['get','subclass'],'open_nonforest','#c9c9bd','0_20','#b9dc9f','21_40','#8bc777','41_80','#61ad60','81_140','#398849','141_plus','#14582d','#777'],'fill-opacity':0.28});add('fires-fill','fill',['==',['get','category'],'fires'],{'fill-color':'#e65f3d','fill-opacity':0.22});add('cutblocks-fill','fill',['==',['get','category'],'cutblocks'],{'fill-color':['match',['get','subclass'],'0_5','#f5d547','6_10','#f59b42','11_15','#98d16f','16_20','#4c9d5b','21_plus','#7c7c75','#d3a23d'],'fill-opacity':0.48});add('cutblocks-line','line',['==',['get','category'],'cutblocks'],{'line-color':'#fff7c8','line-width':0.65,'line-opacity':0.55});add('cutblocks-highlight','line',['all',['==',['get','category'],'cutblocks'],['==',['get','subclass'],'__none__']],{'line-color':'#fff','line-width':4,'line-opacity':1});add('wetlands-fill','fill',['==',['get','category'],'wetlands'],{'fill-color':'#6fc9d3','fill-opacity':0.42});add('wetlands-line','line',['==',['get','category'],'wetlands'],{'line-color':'#b8f5f7','line-width':1});add('hydro-line','line',['==',['get','category'],'hydro'],{'line-color':['match',['get','subclass'],'rivers','#51a9ff','#83c9ff'],'line-width':['match',['get','subclass'],'rivers',2.1,1]});add('roads-line','line',['==',['get','category'],'roads'],{'line-color':['match',['get','subclass'],'likely_driveable','#52d273','maybe_check_access','#ff9f43','overgrown_deactivated','#f05a57','trail_nonroad','#9d78f5','#aab0ad'],'line-width':['match',['get','subclass'],'likely_driveable',2.2,1.35],'line-opacity':0.9});add('boundary-line','line',['==',['get','category'],'boundary'],{'line-color':'#d6a746','line-width':3});applyVisibility();fitFeatures()}
+function applyVisibility(){$$('[data-layer]').forEach(cb=>{(layerIds[cb.dataset.layer]||[]).forEach(id=>{if(map.getLayer(id))map.setLayoutProperty(id,'visibility',cb.checked?'visible':'none')})})}
+function fitFeatures(){const f=allFC.features.filter(x=>x.properties.category==='boundary');const src=f.length?f:allFC.features;if(!src.length)return;const b=new maplibregl.LngLatBounds();const walk=c=>{if(typeof c[0]==='number')b.extend(c);else c.forEach(walk)};src.forEach(x=>{if(x.geometry.type==='GeometryCollection')x.geometry.geometries.forEach(g=>walk(g.coordinates));else walk(x.geometry.coordinates)});if(!b.isEmpty())map.fitBounds(b,{padding:50,pitch:55,duration:1200})}
+function setLayer(name,on){const cb=$(`[data-layer="${name}"]`);if(cb){cb.checked=on;applyVisibility()}}
+function runCommand(raw){const q=raw.toLowerCase().replace(/[–—]/g,'-').trim();if(!q)return;if(q.includes('reset')){$$('[data-layer]').forEach(x=>x.checked=['cutblocks','roads','hydro','wetlands','boundary'].includes(x.dataset.layer));applyVisibility();if(map.getLayer('cutblocks-highlight'))map.setFilter('cutblocks-highlight',['all',['==',['get','category'],'cutblocks'],['==',['get','subclass'],'__none__']]);status('Map layers reset');return}const hide=q.includes('hide')||q.includes('turn off');const show=!hide;if(q.includes('vegetation')||q.includes('forest'))setLayer('vri',show);if(q.includes('fire'))setLayer('fires',show);if(q.includes('wetland'))setLayer('wetlands',show);if(q.includes('stream')||q.includes('river')||q.includes('water'))setLayer('hydro',show);if(q.includes('road')||q.includes('trail'))setLayer('roads',show);if(q.includes('cutblock')||q.includes('cut block'))setLayer('cutblocks',show);if(q.includes('boundary')||q.includes('unit'))setLayer('boundary',show);let age=null;if(/1\s*-\s*5|0\s*-\s*5|1 to 5|0 to 5/.test(q))age='0_5';else if(/6\s*-\s*10|6 to 10/.test(q))age='6_10';else if(/11\s*-\s*15|11 to 15/.test(q))age='11_15';else if(/16\s*-\s*20|16 to 20/.test(q))age='16_20';else if(/21\+|21 plus|over 21/.test(q))age='21_plus';if(age&&map.getLayer('cutblocks-highlight')){setLayer('cutblocks',true);map.setFilter('cutblocks-highlight',['all',['==',['get','category'],'cutblocks'],['==',['get','subclass'],age]]);status(`Highlighted ${age.replace('_','–')} year cutblocks`);return}if(q.includes('driveable')||q.includes('drivable')){setLayer('roads',true);map.setFilter('roads-line',['all',['==',['get','category'],'roads'],['==',['get','subclass'],'likely_driveable']]);status('Showing likely-driveable roads');return}if(q.includes('all road')){map.setFilter('roads-line',['==',['get','category'],'roads']);status('Showing all road-access classes');return}if(q.includes('whole unit')||q.includes('zoom out')||q.includes('home')){fitFeatures();status('Whole-area view');return}status('Command applied')}
+async function handleFile(file){try{status('Reading Chehalis data…');const kml=await fileToKML(file);allFC=parseKML(kml);addLayers();$('#filebox').classList.add('hidden');$('#loaded').classList.remove('hidden');$('#loaded').textContent=`Loaded ${file.name} — ${allFC.features.length.toLocaleString()} mapped features`;status(`Loaded ${allFC.features.length.toLocaleString()} Chehalis features`);await saveBlob(file)}catch(e){console.error(e);status('Could not load file: '+e.message)}}
+function db(){return new Promise((res,rej)=>{const r=indexedDB.open('chehalis-terrain-lab',1);r.onupgradeneeded=()=>r.result.createObjectStore('files');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function saveBlob(file){try{const d=await db();const tx=d.transaction('files','readwrite');tx.objectStore('files').put(file,'chehalis')}catch(e){}}
+async function restoreBlob(){try{const d=await db();const tx=d.transaction('files','readonly');const r=tx.objectStore('files').get('chehalis');r.onsuccess=()=>{if(r.result)handleFile(r.result)}}catch(e){}}
+map.on('load',()=>{map.addLayer({id:'hillshade',type:'hillshade',source:'dem',paint:{'hillshade-exaggeration':0.35}});restoreBlob()});
+map.on('mousemove',e=>{const z=map.queryTerrainElevation(e.lngLat,{exaggerated:false});if(Number.isFinite(z)&&!$('#status').textContent.startsWith('Highlighted'))$('#status').textContent=`${e.lngLat.lat.toFixed(5)}, ${e.lngLat.lng.toFixed(5)}  •  elevation ${Math.round(z)} m`});
+map.on('click',e=>{const ids=Object.values(layerIds).flat().filter(id=>map.getLayer(id));const f=map.queryRenderedFeatures(e.point,{layers:ids})[0];if(!f){$('#inspect').style.display='none';return}const p=f.properties;$('#inspectBody').innerHTML=`<div>Layer</div><div>${p.category||''}</div><div>Class</div><div>${p.subclass||''}</div><div>Name</div><div>${p.name||''}</div>`;$('#inspect').style.display='block'});
+$('#file').addEventListener('change',e=>e.target.files[0]&&handleFile(e.target.files[0]));$$('[data-layer]').forEach(x=>x.addEventListener('change',applyVisibility));$('#exag').addEventListener('input',e=>map.setTerrain({source:'dem',exaggeration:+e.target.value}));$('#hillshade').addEventListener('change',e=>map.setLayoutProperty('hillshade','visibility',e.target.checked?'visible':'none'));$('#home').onclick=()=>fitFeatures();$('#run').onclick=()=>runCommand($('#cmd').value);$('#cmd').addEventListener('keydown',e=>{if(e.key==='Enter')runCommand(e.target.value)});document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();$('#cmd').focus()}});
+</script>
+</body>
+</html>
